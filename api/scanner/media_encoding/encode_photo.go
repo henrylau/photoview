@@ -170,7 +170,21 @@ func (enc *EncodeMediaData) VideoMetadata() (*ffprobe.ProbeData, error) {
 
 	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFn()
-	data, err := ffprobe.ProbeURL(ctx, enc.Media.Path)
+
+	var data *ffprobe.ProbeData
+	var err error
+
+	if scanner_compressfile.IsArchiveFilePath(enc.Media.Path) {
+		fs, e := scanner_compressfile.Loader.LoadFileFS(enc.Media.Path)
+		if e != nil {
+			return nil, errors.Wrapf(err, "could not load archivefile fs (%s)", enc.Media.Path)
+		}
+		reader, _ := fs.Open("")
+		data, err = ffprobe.ProbeReader(ctx, reader)
+	} else {
+		data, err = ffprobe.ProbeURL(ctx, enc.Media.Path)
+	}
+
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not read video metadata (%s)", enc.Media.Title)
 	}

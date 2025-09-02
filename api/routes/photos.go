@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"bytes"
 	"net/http"
 	"os"
 
@@ -52,12 +51,12 @@ func RegisterPhotoRoutes(db *gorm.DB, router *mux.Router) {
 		}
 
 		if mediaURL.Purpose == models.MediaOriginal && scanner_compressfile.IsArchiveFilePath(cachedPath) {
-			data, err := scanner_compressfile.Loader.LoadFile(cachedPath)
+			fs, err := scanner_compressfile.Loader.LoadFileFS(cachedPath)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 
-			http.ServeContent(w, r, mediaName, media.Date(), bytes.NewReader(data))
+			http.ServeFileFS(w, r, fs, mediaName)
 			return
 		}
 
