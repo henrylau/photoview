@@ -6,9 +6,12 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
+	"sort"
 
 	"github.com/photoview/photoview/api/graphql/models"
 	"github.com/photoview/photoview/api/scanner/scanner_cache"
+	"github.com/photoview/photoview/api/scanner/scanner_compressfile"
 	"github.com/photoview/photoview/api/scanner/scanner_tasks/cleanup_tasks"
 	"github.com/photoview/photoview/api/scanner/scanner_utils"
 	"github.com/photoview/photoview/api/utils"
@@ -215,6 +218,21 @@ func FindAlbumsForUser(db *gorm.DB, user *models.User, albumCache *scanner_cache
 					parent: album,
 					ignore: albumIgnore,
 				})
+			} else if (item.IsDir() || isDirSymlink) && directoryContainsArchiveWithPhotos(subalbumPath, albumCache, albumIgnore) {
+				scanQueue.PushBack(scanInfo{
+					path:   subalbumPath,
+					parent: album,
+					ignore: albumIgnore,
+				})
+			} else if !item.IsDir() && isArchiveFileContainsPhotos(subalbumPath, albumCache) {
+				// immplement album folder strucuture database insert
+				albums, err := upsertCompressFileAlbum(subalbumPath, db, user, album, albumCache, albumIgnore)
+
+				if err != nil {
+					scanErrors = append(scanErrors, errors.Wrapf(err, "could not upsert compress file album %s", subalbumPath))
+				} else {
+					userAlbums = append(userAlbums, albums...)
+				}
 			}
 		}
 	}
@@ -289,4 +307,192 @@ func directoryContainsPhotos(rootPath string, cache *scanner_cache.AlbumScannerC
 		cache.InsertAlbumPath(scanned_path, false)
 	}
 	return false
+}
+
+func directoryContainsArchiveWithPhotos(rootPath string, cache *scanner_cache.AlbumScannerCache, albumIgnore []string) bool {
+	// TODO: Review Archive file cache
+	// if containsImage := cache.AlbumContainsPhotos(rootPath); containsImage != nil {
+	// 	return *containsImage
+	// }
+
+	scanQueue := list.New()
+	scanQueue.PushBack(rootPath)
+
+	scannedDirectories := make([]string, 0)
+
+	for scanQueue.Front() != nil {
+
+		dirPath := scanQueue.Front().Value.(string)
+		scanQueue.Remove(scanQueue.Front())
+
+		scannedDirectories = append(scannedDirectories, dirPath)
+
+		// Update ignore dir list
+		photoviewIgnore, err := getPhotoviewIgnore(dirPath)
+		if err != nil {
+			log.Printf("Failed to get ignore file, err = %s", err)
+		} else {
+			albumIgnore = append(albumIgnore, photoviewIgnore...)
+		}
+		ignoreEntries := ignore.CompileIgnoreLines(albumIgnore...)
+
+		dirContent, err := os.ReadDir(dirPath)
+		if err != nil {
+			scanner_utils.ScannerError(nil, "Could not read directory (%s): %s\n", dirPath, err.Error())
+			return false
+		}
+
+		for _, fileInfo := range dirContent {
+			filePath := path.Join(dirPath, fileInfo.Name())
+
+			isDirSymlink, err := utils.IsDirSymlink(filePath)
+			if err != nil {
+				log.Printf("Cannot detect whether %s is symlink to a directory. Pretending it is not", filePath)
+				isDirSymlink = false
+			}
+
+			if fileInfo.IsDir() || isDirSymlink {
+				scanQueue.PushBack(filePath)
+			} else {
+				if scanner_compressfile.IsArchiveFile(filePath) {
+					if ignoreEntries.MatchesPath(fileInfo.Name()) {
+						continue
+					}
+
+					if scanner_compressfile.IsArchiveFileContainsPhotos(filePath) {
+						cache.InsertAlbumPaths(dirPath, rootPath, true)
+						cache.InsertAlbumPath(filePath, true)
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	for _, scanned_path := range scannedDirectories {
+		cache.InsertAlbumPath(scanned_path, false)
+	}
+	return false
+}
+
+func isArchiveFileContainsPhotos(rootPath string, cache *scanner_cache.AlbumScannerCache) bool {
+	if !scanner_compressfile.IsArchiveFile(rootPath) {
+		return false
+	}
+
+	if containsImage := cache.AlbumContainsPhotos(rootPath); containsImage != nil {
+		return *containsImage
+	}
+
+	if scanner_compressfile.IsArchiveFileContainsPhotos(rootPath) {
+		cache.InsertAlbumPath(rootPath, true)
+		return true
+	}
+
+	cache.InsertAlbumPath(rootPath, false)
+	return false
+}
+
+func upsertCompressFileAlbum(rootPath string, db *gorm.DB, user *models.User, albumParent *models.Album, cache *scanner_cache.AlbumScannerCache, albumIgnore []string) ([]*models.Album, error) {
+	userAlbums := []*models.Album{}
+	transErr := db.Transaction(func(tx *gorm.DB) error {
+
+		// check if album already exists
+		var albumResult []models.Album
+		result := tx.Where("path_hash = ?", models.MD5Hash(rootPath)).Find(&albumResult)
+		if result.Error != nil {
+			return result.Error
+		}
+
+		var album *models.Album
+
+		// album does not exist, create new
+		if len(albumResult) == 0 {
+			files, err := scanner_compressfile.Loader.ListArchiveFiles(rootPath)
+			if err != nil {
+				return err
+			}
+
+			albumParents := make(map[string]*models.Album)
+			albums := make(map[string]bool)
+
+			albumParents[albumParent.Path] = albumParent
+			albums[rootPath] = true
+
+			for _, file := range files {
+				dir := filepath.Dir(file.ArchivePath())
+				if !albums[dir] {
+					for dir != "." && dir != "/" {
+						albums[filepath.Join(rootPath, dir)] = true
+						dir = filepath.Dir(dir)
+					}
+				}
+			}
+
+			albumPaths := []string{}
+
+			for path := range albums {
+				albumPaths = append(albumPaths, path)
+			}
+			sort.Strings(albumPaths)
+			for _, albumPath := range albumPaths {
+				albumTitle := path.Base(albumPath)
+
+				var albumParentID *int
+				parentOwners := make([]models.User, 0)
+				parent := albumParents[filepath.Dir(albumPath)]
+
+				if parent == nil {
+					log.Printf("Parent album not found for folder %s", albumPath)
+					continue
+				} else {
+					albumParentID = &parent.ID
+					if err := tx.Model(&albumParent).Association("Owners").Find(&parentOwners); err != nil {
+						return err
+					}
+				}
+
+				album = &models.Album{
+					Title:          albumTitle,
+					ParentAlbumID:  albumParentID,
+					Path:           albumPath,
+					IsCompressFile: true,
+				}
+
+				cache.InsertAlbumIgnore(albumPath, albumIgnore)
+
+				if err := tx.Create(&album).Error; err != nil {
+					return errors.Wrap(err, "insert album into database")
+				}
+
+				if err := tx.Model(&album).Association("Owners").Append(parentOwners); err != nil {
+					return errors.Wrap(err, "add owners to album")
+				}
+
+				albumParents[albumPath] = album
+				userAlbums = append(userAlbums, album)
+			}
+		} else {
+			// skip if album already exists
+			result := tx.Where("path like ?", rootPath+"%").Find(&albumResult)
+			if result.Error != nil {
+				return result.Error
+			}
+
+			for i := range albumResult {
+				userAlbums = append(userAlbums, &albumResult[i])
+
+				// Update album ignore
+				cache.InsertAlbumIgnore(albumResult[i].Path, albumIgnore)
+			}
+		}
+		return nil
+	})
+
+	if transErr != nil {
+		scanner_utils.ScannerError(nil, "Could not insert archive album (%s): %s\n", rootPath, transErr.Error())
+		return nil, transErr
+	}
+
+	return userAlbums, nil
 }

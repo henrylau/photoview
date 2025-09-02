@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/photoview/photoview/api/scanner/media_type"
+	"github.com/photoview/photoview/api/scanner/scanner_compressfile"
 	"github.com/photoview/photoview/api/scanner/scanner_utils"
 )
 
@@ -78,7 +79,14 @@ func (c *AlbumScannerCache) GetMediaType(path string) (media_type.MediaType, err
 		return result, nil
 	}
 
-	mediaType := media_type.GetMediaType(path)
+	var mediaType media_type.MediaType
+
+	if scanner_compressfile.IsArchiveFilePath(path) {
+		mediaType, _ = scanner_compressfile.GetFileType(path)
+	} else {
+		mediaType = media_type.GetMediaType(path)
+	}
+
 	if mediaType == media_type.TypeUnknown {
 		return mediaType, fmt.Errorf("unknown media type (%s)", path)
 	}

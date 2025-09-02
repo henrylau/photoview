@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/photoview/photoview/api/log"
+	"github.com/photoview/photoview/api/scanner/scanner_compressfile"
 	"gopkg.in/gographics/imagick.v3/imagick"
 )
 
@@ -101,7 +102,15 @@ func (cli *MagickWand) createWandFromFile(inputPath string) (*imagick.MagickWand
 
 	wand := imagick.NewMagickWand()
 
-	if err := wand.ReadImage(inputPath); err != nil {
+	if scanner_compressfile.IsArchiveFilePath(inputPath) {
+		data, err := scanner_compressfile.Loader.LoadFile(inputPath)
+		if err != nil {
+			return nil, fmt.Errorf("Compress file loader error: %w", err)
+		}
+		if err := wand.ReadImageBlob(data); err != nil {
+			return nil, fmt.Errorf("ImagickWand read %q error: %w", inputPath, err)
+		}
+	} else if err := wand.ReadImage(inputPath); err != nil {
 		return nil, fmt.Errorf("ImagickWand read %q error: %w", inputPath, err)
 	}
 

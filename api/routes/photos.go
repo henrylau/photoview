@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"bytes"
 	"net/http"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/photoview/photoview/api/graphql/models"
 	"github.com/photoview/photoview/api/log"
 	"github.com/photoview/photoview/api/scanner"
+	"github.com/photoview/photoview/api/scanner/scanner_compressfile"
 )
 
 func RegisterPhotoRoutes(db *gorm.DB, router *mux.Router) {
@@ -46,6 +48,16 @@ func RegisterPhotoRoutes(db *gorm.DB, router *mux.Router) {
 			log.Error(r.Context(), "error getting cached path for media URL", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(internalServerError))
+			return
+		}
+
+		if mediaURL.Purpose == models.MediaOriginal && scanner_compressfile.IsArchiveFilePath(cachedPath) {
+			data, err := scanner_compressfile.Loader.LoadFile(cachedPath)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+
+			http.ServeContent(w, r, mediaName, media.Date(), bytes.NewReader(data))
 			return
 		}
 

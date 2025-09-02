@@ -2,7 +2,6 @@ package processing_tasks
 
 import (
 	"fmt"
-	"os"
 	"path"
 
 	"github.com/photoview/photoview/api/graphql/models"
@@ -58,11 +57,6 @@ func saveOriginalPhotoToDB(tx *gorm.DB, photo *models.Media, imageData *media_en
 		return nil, err
 	}
 
-	fileStats, err := os.Stat(photo.Path)
-	if err != nil {
-		return nil, errors.Wrap(err, "reading file stats of original photo")
-	}
-
 	mediaURL := models.MediaURL{
 		Media:       photo,
 		MediaName:   originalImageName,
@@ -70,7 +64,7 @@ func saveOriginalPhotoToDB(tx *gorm.DB, photo *models.Media, imageData *media_en
 		Height:      photoDimensions.Height,
 		Purpose:     models.MediaOriginal,
 		ContentType: contentType.String(),
-		FileSize:    fileStats.Size(),
+		FileSize:    imageData.GetFileInfo().Size(),
 	}
 
 	if err := tx.Create(&mediaURL).Error; err != nil {

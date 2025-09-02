@@ -8,6 +8,7 @@ import (
 	"github.com/photoview/photoview/api/graphql/models"
 	"github.com/photoview/photoview/api/log"
 	"github.com/photoview/photoview/api/scanner/media_encoding"
+	"github.com/photoview/photoview/api/scanner/scanner_compressfile"
 	"github.com/photoview/photoview/api/scanner/scanner_task"
 	"github.com/photoview/photoview/api/scanner/scanner_tasks"
 	"github.com/photoview/photoview/api/scanner/scanner_utils"
@@ -92,14 +93,14 @@ func ScanAlbum(ctx scanner_task.TaskContext) error {
 	ctx = newCtx
 
 	// Scan for photos
-	albumMedia, err := findMediaForAlbum(ctx)
+	albumMedia, albumMediaInfo, err := findMediaForAlbum(ctx)
 	if err != nil {
 		return errors.Wrapf(err, "find media for album (%s): %s", ctx.GetAlbum().Path, err)
 	}
 
 	changedMedia := make([]*models.Media, 0)
 	for i, media := range albumMedia {
-		mediaData := media_encoding.NewEncodeMediaData(media)
+		mediaData := media_encoding.NewEncodeMediaData(media, albumMediaInfo[i])
 
 		if err := scanMedia(ctx, media, &mediaData, i, len(albumMedia)); err != nil {
 			scanner_utils.ScannerError(ctx, "Error scanning media for album (%d) file (%s): %s\n", ctx.GetAlbum().ID, media.Path, err)
@@ -113,40 +114,57 @@ func ScanAlbum(ctx scanner_task.TaskContext) error {
 	return nil
 }
 
-func findMediaForAlbum(ctx scanner_task.TaskContext) ([]*models.Media, error) {
+func findMediaForAlbum(ctx scanner_task.TaskContext) ([]*models.Media, []os.FileInfo, error) {
 
 	albumMedia := make([]*models.Media, 0)
+	albumMediaInfo := make([]os.FileInfo, 0)
 
-	dirContent, err := os.ReadDir(ctx.GetAlbum().Path)
+	var dirContent []os.DirEntry
+	var err error
+
+	if ctx.GetAlbum().IsCompressFile {
+		var files []scanner_compressfile.ArchiveEntry
+		files, err = scanner_compressfile.Loader.ListArchiveFilesBySubpath(ctx.GetAlbum().Path)
+
+		for _, f := range files {
+			dirContent = append(dirContent, f)
+		}
+	} else {
+		dirContent, err = os.ReadDir(ctx.GetAlbum().Path)
+	}
+
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for _, item := range dirContent {
 		mediaPath := path.Join(ctx.GetAlbum().Path, item.Name())
 		log.Info(ctx, "Check the media", "media_path", mediaPath)
 
-		isDirSymlink, err := utils.IsDirSymlink(mediaPath)
-		if err != nil {
-			log.Warn(ctx, "Cannot detect whether the path is symlink to a directory. Pretending it is not", "media_path", mediaPath)
-			isDirSymlink = false
+		isDirSymlink := false
+		if !ctx.GetAlbum().IsCompressFile {
+			isDirSymlink, err = utils.IsDirSymlink(mediaPath)
+			if err != nil {
+				log.Warn(ctx, "Cannot detect whether the path is symlink to a directory. Pretending it is not", "media_path", mediaPath)
+				isDirSymlink = false
+			}
 		}
 
-		if !item.IsDir() && !isDirSymlink && ctx.GetCache().IsPathMedia(mediaPath) {
+		if !item.IsDir() && !isDirSymlink && (ctx.GetCache().IsPathMedia(mediaPath) || ctx.GetAlbum().IsCompressFile) {
 			itemInfo, err := item.Info()
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			skip, err := scanner_tasks.Tasks.MediaFound(ctx, itemInfo, mediaPath)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if skip {
 				continue
 			}
 
 			err = ctx.DatabaseTransaction(func(ctx scanner_task.TaskContext) error {
-				media, isNewMedia, err := ScanMedia(ctx.GetDB(), mediaPath, ctx.GetAlbum().ID, ctx.GetCache())
+				media, isNewMedia, err := ScanMedia(ctx.GetDB(), mediaPath, ctx.GetAlbum().ID, ctx.GetCache(), itemInfo)
 				if err != nil {
 					return errors.Wrapf(err, "scanning media error (%s)", mediaPath)
 				}
@@ -156,6 +174,7 @@ func findMediaForAlbum(ctx scanner_task.TaskContext) ([]*models.Media, error) {
 				}
 
 				albumMedia = append(albumMedia, media)
+				albumMediaInfo = append(albumMediaInfo, itemInfo)
 
 				return nil
 			})
@@ -168,7 +187,7 @@ func findMediaForAlbum(ctx scanner_task.TaskContext) ([]*models.Media, error) {
 
 	}
 
-	return albumMedia, nil
+	return albumMedia, albumMediaInfo, nil
 }
 
 func processMedia(ctx scanner_task.TaskContext, mediaData *media_encoding.EncodeMediaData) ([]*models.MediaURL, error) {

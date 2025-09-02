@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"os"
 	"time"
 
 	"github.com/photoview/photoview/api/graphql/models"
 	"github.com/photoview/photoview/api/scanner/media_encoding/executable_worker"
 	"github.com/photoview/photoview/api/scanner/media_type"
+	"github.com/photoview/photoview/api/scanner/scanner_compressfile"
 	"github.com/pkg/errors"
 	"gopkg.in/vansante/go-ffprobe.v2"
 
@@ -100,14 +102,22 @@ type EncodeMediaData struct {
 	_photoImage     image.Image
 	_contentType    media_type.MediaType
 	_videoMetadata  *ffprobe.ProbeData
+	_info           os.FileInfo
 }
 
-func NewEncodeMediaData(media *models.Media) EncodeMediaData {
-	fileType := media_type.GetMediaType(media.Path)
+func NewEncodeMediaData(media *models.Media, info os.FileInfo) EncodeMediaData {
+	var fileType media_type.MediaType
+
+	if scanner_compressfile.IsArchiveFilePath(media.Path) {
+		fileType, _ = scanner_compressfile.GetFileType(media.Path)
+	} else {
+		fileType = media_type.GetMediaType(media.Path)
+	}
 
 	return EncodeMediaData{
 		Media:        media,
 		_contentType: fileType,
+		_info:        info,
 	}
 }
 
@@ -167,4 +177,8 @@ func (enc *EncodeMediaData) VideoMetadata() (*ffprobe.ProbeData, error) {
 
 	enc._videoMetadata = data
 	return enc._videoMetadata, nil
+}
+
+func (img *EncodeMediaData) GetFileInfo() os.FileInfo {
+	return img._info
 }
