@@ -15,6 +15,10 @@ type CounterpartFilesTask struct {
 }
 
 func (t CounterpartFilesTask) MediaFound(ctx scanner_task.TaskContext, fileInfo fs.FileInfo, mediaPath string) (skip bool, err error) {
+	if ctx.GetAlbum().IsCompressFile {
+		return false, nil
+	}
+
 	fileType := media_type.GetMediaType(mediaPath)
 
 	if !fileType.IsSupported() {

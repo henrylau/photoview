@@ -8,7 +8,9 @@ import (
 
 	"github.com/photoview/photoview/api/graphql/models"
 	"github.com/photoview/photoview/api/scanner/media_encoding"
+	"github.com/photoview/photoview/api/scanner/media_type"
 	"github.com/photoview/photoview/api/scanner/scanner_cache"
+	"github.com/photoview/photoview/api/scanner/scanner_compressfile"
 	"github.com/photoview/photoview/api/scanner/scanner_task"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -16,7 +18,7 @@ import (
 
 var ProcessSingleMediaFunc = ProcessSingleMedia
 
-func ScanMedia(tx *gorm.DB, mediaPath string, albumId int, cache *scanner_cache.AlbumScannerCache) (*models.Media, bool, error) {
+func ScanMedia(tx *gorm.DB, mediaPath string, albumId int, cache *scanner_cache.AlbumScannerCache, stat os.FileInfo) (*models.Media, bool, error) {
 	mediaName := path.Base(mediaPath)
 
 	// Check if media already exists
@@ -37,22 +39,24 @@ func ScanMedia(tx *gorm.DB, mediaPath string, albumId int, cache *scanner_cache.
 
 	log.Printf("Scanning media: %s\n", mediaPath)
 
-	mediaType, err := cache.GetMediaType(mediaPath)
+	var mediaTypeText models.MediaType
+	var mediaType media_type.MediaType
+	var err error
+
+	if scanner_compressfile.IsArchiveFilePath(mediaPath) {
+		mediaType, err = scanner_compressfile.GetFileType(mediaPath)
+	} else {
+		mediaType, err = cache.GetMediaType(mediaPath)
+	}
+
 	if err != nil {
 		return nil, false, errors.Wrap(err, "could determine if media was photo or video")
 	}
-
-	var mediaTypeText models.MediaType
 
 	if mediaType.IsVideo() {
 		mediaTypeText = models.MediaTypeVideo
 	} else {
 		mediaTypeText = models.MediaTypePhoto
-	}
-
-	stat, err := os.Stat(mediaPath)
-	if err != nil {
-		return nil, false, err
 	}
 
 	media := models.Media{
@@ -80,7 +84,12 @@ func ProcessSingleMedia(ctx context.Context, db *gorm.DB, media *models.Media) e
 		return err
 	}
 
-	mediaData := media_encoding.NewEncodeMediaData(media)
+	fileInfo, err := os.Stat(media.Path)
+	if err != nil {
+		return err
+	}
+
+	mediaData := media_encoding.NewEncodeMediaData(media, fileInfo)
 
 	taskContext := scanner_task.NewTaskContext(ctx, db, &album, albumCache)
 	if err := scanMedia(taskContext, media, &mediaData, 0, 1); err != nil {

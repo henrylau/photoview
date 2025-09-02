@@ -9,6 +9,7 @@ import (
 
 	"github.com/photoview/photoview/api/utils"
 	"github.com/pkg/errors"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -30,6 +31,7 @@ type Media struct {
 	SideCarHash     *string      `gorm:"unique"`
 	Faces           []*ImageFace `gorm:"constraint:OnDelete:CASCADE;"`
 	Blurhash        *string      `gorm:""`
+	Metadata        datatypes.JSON
 }
 
 func (Media) TableName() string {

@@ -23,6 +23,7 @@ var (
 	TypeWebP = mediaType("image/webp")
 	TypeBMP  = mediaType("image/bmp")
 	TypeGIF  = mediaType("image/gif")
+	TypeAVIF = mediaType("image/avif")
 
 	// Web Video formats
 	TypeMP4  = mediaType("video/mp4")
