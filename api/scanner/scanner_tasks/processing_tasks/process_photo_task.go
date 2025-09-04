@@ -56,7 +56,7 @@ func (t ProcessPhotoTask) ProcessMedia(ctx scanner_task.TaskContext, mediaData *
 		}
 
 		if !contentType.IsWebCompatible() {
-			highresName := generateUniqueMediaNamePrefixed("highres", photo.Path, ".jpg")
+			highresName := generateUniqueMediaNamePrefixed("highres", photo.Path, ".webp")
 			baseImagePath = path.Join(mediaCachePath, highresName)
 
 			highRes, err := generateSaveHighResJPEG(ctx.GetDB(), photo, mediaData, highresName, baseImagePath, nil)
@@ -100,7 +100,7 @@ func (t ProcessPhotoTask) ProcessMedia(ctx scanner_task.TaskContext, mediaData *
 
 	// Save thumbnail to cache
 	if thumbURL == nil {
-		thumbnailName := generateUniqueMediaNamePrefixed("thumbnail", photo.Path, ".jpg")
+		thumbnailName := generateUniqueMediaNamePrefixed("thumbnail", photo.Path, ".webp")
 		thumbnail, err := generateSaveThumbnailJPEG(ctx.GetDB(), photo, thumbnailName, mediaCachePath, baseImagePath, nil)
 		if err != nil {
 			return []*models.MediaURL{}, err

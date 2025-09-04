@@ -47,6 +47,20 @@ RUN --mount=type=cache,target=${BUILD_CACHE_DIR},id=imagemagick-${TARGETARCH}-${
     && set -a && source /env && set +a \
     && ./build_imagemagick.sh
 
+FROM base-prep AS build-libvips
+ARG LIBVIPS_VERSION
+ARG TARGETARCH
+ENV BUILD_CACHE_DIR=/build-cache
+WORKDIR /tmp/build-libvips
+COPY --chmod=0755 build_libvips.sh .
+RUN --mount=type=cache,target=${BUILD_CACHE_DIR},id=libvips-${TARGETARCH}-${LIBVIPS_VERSION} \
+    --mount=type=secret,id=github_token \
+    if [ -f /run/secrets/github_token ]; then \
+    export GITHUB_TOKEN=$(cat /run/secrets/github_token); \
+    fi \
+    && set -a && source /env && set +a \
+    && ./build_libvips.sh
+
 FROM base-prep AS download-jellyfin-ffmpeg
 ARG JELLYFIN_FFMPEG_VERSION
 ARG TARGETARCH
@@ -61,6 +75,7 @@ FROM base-prep AS final-assembly
 COPY --from=build-libraw /output/ /output/
 COPY --from=build-libheif /output/ /output/
 COPY --from=build-imagemagick /output/ /output/
+COPY --from=build-libvips /output/ /output/
 COPY --from=download-jellyfin-ffmpeg /output/ /output/
 COPY --chmod=0755 output.sh /
 RUN /output.sh

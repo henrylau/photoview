@@ -2,16 +2,18 @@ name: Dependencies builds
 
 on:
   push:
-    branches: [master]
+    branches: [master, feature]
   pull_request:
     branches: [master]
-  schedule:
-    # At 23:18 every Wednesday, 2 hours before `photoview`. Details in https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#schedule
-    - cron: '18 23 * * 3'
+  # schedule:
+  #   # At 23:18 every Wednesday, 2 hours before `photoview`. Details in https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#schedule
+  #   - cron: '18 23 * * 3'
 
 env:
-  IS_PUSHING_IMAGES: ${{ github.event_name != 'pull_request' && github.repository == 'photoview/photoview' }}
+  # IS_PUSHING_IMAGES: ${{ github.event_name != 'pull_request' && github.repository == 'photoview/photoview' }}
+  IS_PUSHING_IMAGES: true # Switch on when pushing images with forked repos.
   IS_CACHING: true
+  DOCKER_REGISTRY: ${{ github.repository != 'photoview/photoview' && 'ghcr.io/' || '' }}
   DOCKER_USERNAME: viktorstrate
   DOCKER_IMAGE: photoview/dependencies
   PLATFORMS: linux/amd64,linux/arm64
@@ -37,15 +39,16 @@ jobs:
         if: ${{ env.IS_PUSHING_IMAGES == 'true' }}
         uses: docker/login-action@v3
         with:
-          username: ${{ env.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ${{ env.DOCKER_REGISTRY == 'ghcr.io/' && 'ghcr.io' || '' }}
+          username: ${{ env.DOCKER_REGISTRY == 'ghcr.io/' && github.actor || env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_REGISTRY == 'ghcr.io/' && github.token || env.DOCKER_PASSWORD }}
 
       - name: Docker meta
         id: docker_meta
         uses: docker/metadata-action@v5
         with:
           # list of Docker images to use as base name for tags
-          images: ${{ env.DOCKER_IMAGE }}
+          images: ${{ env.DOCKER_REGISTRY }}${{ env.DOCKER_IMAGE }}
           # Docker tags based on the following events/attributes
           tags: |
             type=raw,value=trixie
@@ -71,11 +74,15 @@ jobs:
           JELLYFIN_FFMPEG_VERSION=$(curl -fsSL --retry 2 --retry-delay 5 --retry-max-time 60 \
             ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} \
             "https://api.github.com/repos/jellyfin/jellyfin-ffmpeg/releases/latest" | jq -r '.tag_name')
+          LIBVIPS_VERSION=$(curl -fsSL --retry 2 --retry-delay 5 --retry-max-time 60 \
+            ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} \
+            "https://api.github.com/repos/libvips/libvips/releases/latest" | jq -r '.tag_name')
           # Output as environment variables
           echo "LIBRAW_VERSION=${LIBRAW_VERSION}" | tee -a $GITHUB_OUTPUT
           echo "LIBHEIF_VERSION=${LIBHEIF_VERSION}" | tee -a $GITHUB_OUTPUT
           echo "IMAGEMAGICK_VERSION=${IMAGEMAGICK_VERSION}" | tee -a $GITHUB_OUTPUT
           echo "JELLYFIN_FFMPEG_VERSION=${JELLYFIN_FFMPEG_VERSION}" | tee -a $GITHUB_OUTPUT
+          echo "LIBVIPS_VERSION=${LIBVIPS_VERSION}" | tee -a $GITHUB_OUTPUT
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -99,3 +106,4 @@ jobs:
             LIBHEIF_VERSION=${{ steps.versions.outputs.LIBHEIF_VERSION }}
             IMAGEMAGICK_VERSION=${{ steps.versions.outputs.IMAGEMAGICK_VERSION }}
             JELLYFIN_FFMPEG_VERSION=${{ steps.versions.outputs.JELLYFIN_FFMPEG_VERSION }}
+            LIBVIPS_VERSION=${{ steps.versions.outputs.LIBVIPS_VERSION }}

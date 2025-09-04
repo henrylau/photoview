@@ -18,3 +18,6 @@ apt-get install -y --no-install-recommends libdlib19.2 libblas3 liblapack3 libjp
 
 # gomagic dependencies
 apt-get install -y --no-install-recommends libmagic1t64
+
+# libvips dependencies
+apt-get install -y --no-install-recommends libvips

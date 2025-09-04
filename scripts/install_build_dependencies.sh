@@ -22,3 +22,6 @@ apt-get install -y --no-install-recommends libmagic-dev:${DEB_HOST_ARCH}
 
 # Install tools for development
 apt-get install -y --no-install-recommends reflex sqlite3
+
+# Install build dependencies for libvips
+apt-get install  -y --no-install-recommends libglib2.0-dev:${DEB_HOST_ARCH} libcfitsio-dev:${DEB_HOST_ARCH} libimagequant-dev:${DEB_HOST_ARCH} libexif-dev:${DEB_HOST_ARCH} libpangoft2-1.0-0:${DEB_HOST_ARCH} libghc-cairo-dev:${DEB_HOST_ARCH} librsvg2-dev:${DEB_HOST_ARCH} libmatio-dev:${DEB_HOST_ARCH} 

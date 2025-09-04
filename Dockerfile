@@ -89,10 +89,14 @@ RUN set -a && source /env && set +a \
         github.com/mattn/go-sqlite3 \
         github.com/Kagami/go-face
 
+# Download libvips-dev
+RUN apt update && apt install -y libvips-dev pkg-config libdlib-dev libblas-dev liblapack-dev libmagic-dev
+
 COPY api /app/api
-RUN set -a && source /env && set +a \
-    && go env \
-    && go build -v -o photoview .
+# RUN set -a && source /env && set +a \
+#     && go env \
+#     && go build -v -o photoview .
+RUN go build -v -o photoview .
 
 ### Build release image ###
 FROM debian:trixie-slim AS release
@@ -116,6 +120,7 @@ RUN --mount=type=bind,from=api,source=/dependencies/,target=/dependencies/ \
     && apt-get install -y ./deb/jellyfin-ffmpeg.deb \
     && ln -s /usr/lib/jellyfin-ffmpeg/ffmpeg /usr/local/bin/ \
     && ln -s /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ \
+    && apt update && apt install -y libvips \
     # Cleanup
     && apt-get autoremove -y \
     && apt-get clean \

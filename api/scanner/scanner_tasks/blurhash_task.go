@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	_ "image/jpeg"
+	_ "image/png"
 	"os"
 
 	"github.com/buckket/go-blurhash"
@@ -11,6 +12,7 @@ import (
 	"github.com/photoview/photoview/api/log"
 	"github.com/photoview/photoview/api/scanner/media_encoding"
 	"github.com/photoview/photoview/api/scanner/scanner_task"
+	_ "golang.org/x/image/webp"
 )
 
 type BlurhashTask struct {

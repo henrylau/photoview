@@ -7,6 +7,7 @@ require (
 	github.com/Kagami/go-face v0.0.0-20210630145111-0c14797b4d0e
 	github.com/barasher/go-exiftool v1.10.0
 	github.com/buckket/go-blurhash v1.1.0
+	github.com/davidbyttow/govips/v2 v2.16.0
 	github.com/gen2brain/go-unarr v0.2.4
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/google/go-cmp v0.7.0
@@ -23,6 +24,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.30
 	github.com/wsxiaoys/terminal v0.0.0-20160513160801-0940f3fc43a0
 	golang.org/x/crypto v0.42.0
+	golang.org/x/image v0.30.0
 	golang.org/x/text v0.29.0
 	gopkg.in/gographics/imagick.v3 v3.7.2
 	gopkg.in/vansante/go-ffprobe.v2 v2.2.1
@@ -50,7 +52,6 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/kr/text v0.1.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.23 // indirect
 	github.com/otiai10/mint v1.6.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -62,6 +63,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.7 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	golang.org/x/mod v0.27.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect

@@ -17,6 +17,7 @@ var ErrDisabledFunction = errors.New("function disabled")
 func Initialize() func() {
 	Magick = newMagickWand()
 	Ffmpeg = newFfmpegCli()
+	Vips = newVipsEncoder()
 
 	if err := SetFfprobePath(); err != nil {
 		log.Error(nil, "Init ffprobe fail.", "error", err)
@@ -25,11 +26,14 @@ func Initialize() func() {
 	return func() {
 		Magick.Terminate()
 		Magick = nil
+		Vips.Terminate()
+		Vips = nil
 	}
 }
 
 var Magick *MagickWand = nil
 var Ffmpeg *FfmpegCli = nil
+var Vips *VipsEncoder = nil
 
 type ExecutableWorker interface {
 	Path() string

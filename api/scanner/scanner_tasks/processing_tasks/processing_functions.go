@@ -35,7 +35,7 @@ func generateSaveHighResJPEG(tx *gorm.DB, media *models.Media, imageData *media_
 			Width:       photoDimensions.Width,
 			Height:      photoDimensions.Height,
 			Purpose:     models.PhotoHighRes,
-			ContentType: "image/jpeg",
+			ContentType: "image/jpeg", // TODO: change by output extension
 			FileSize:    fileStats.Size(),
 		}
 
@@ -76,7 +76,7 @@ func generateSaveThumbnailJPEG(tx *gorm.DB, media *models.Media, thumbnailName s
 			Width:       thumbSize.Width,
 			Height:      thumbSize.Height,
 			Purpose:     models.PhotoThumbnail,
-			ContentType: "image/jpeg",
+			ContentType: "image/jpeg", // TODO: change by output extension
 			FileSize:    fileStats.Size(),
 		}
 

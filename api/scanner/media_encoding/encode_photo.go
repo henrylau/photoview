@@ -54,7 +54,7 @@ func (d *Dimension) ThumbnailScale() Dimension {
 
 // GetPhotoDimensions returns the dimension of the image `imagePath`.
 func GetPhotoDimensions(imagePath string) (Dimension, error) {
-	w, h, err := executable_worker.Magick.IdentifyDimension(imagePath)
+	w, h, err := executable_worker.Vips.IdentifyDimension(imagePath)
 	if err != nil {
 		return Dimension{}, fmt.Errorf("identify dimension %q error: %w", imagePath, err)
 	}
@@ -68,7 +68,7 @@ func GetPhotoDimensions(imagePath string) (Dimension, error) {
 // EncodeThumbnail encodes a thumbnail of `inputPath`, and store it as `outputPath`.
 // It returns the dimension of the thumbnail. The thumbnail will be not bigger than 1024x1024.
 func EncodeThumbnail(db *gorm.DB, inputPath string, outputPath string) (Dimension, error) {
-	w, h, err := executable_worker.Magick.IdentifyDimension(inputPath)
+	w, h, err := executable_worker.Vips.IdentifyDimension(inputPath)
 	if err != nil {
 		return Dimension{}, fmt.Errorf("can't generate thumbnail of file %q: %w", inputPath, err)
 	}
@@ -79,11 +79,11 @@ func EncodeThumbnail(db *gorm.DB, inputPath string, outputPath string) (Dimensio
 	}
 	thumbnail := origin.ThumbnailScale()
 
-	if err := executable_worker.Magick.GenerateThumbnail(inputPath, outputPath, uint(thumbnail.Width), uint(thumbnail.Height)); err != nil {
+	if err := executable_worker.Vips.GenerateThumbnail(inputPath, outputPath, uint(thumbnail.Width), uint(thumbnail.Height)); err != nil {
 		return Dimension{}, fmt.Errorf("can't generate thumbnail of file %q: %w", inputPath, err)
 	}
 
-	w, h, err = executable_worker.Magick.IdentifyDimension(outputPath)
+	w, h, err = executable_worker.Vips.IdentifyDimension(outputPath)
 	if err != nil {
 		return Dimension{}, fmt.Errorf("can't generate thumbnail of file %q: %w", inputPath, err)
 	}
@@ -153,7 +153,7 @@ func (img *EncodeMediaData) EncodeHighRes(outputPath string) error {
 			imgPath = *img.CounterpartPath
 		}
 
-		err := executable_worker.Magick.EncodeJpeg(imgPath, outputPath, 70)
+		err := executable_worker.Vips.Encode(imgPath, outputPath, 70)
 		if err != nil {
 			return fmt.Errorf("failed to convert RAW photo %q to JPEG: %w", imgPath, err)
 		}

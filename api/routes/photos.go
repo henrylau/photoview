@@ -1,8 +1,10 @@
 package routes
 
 import (
+	"bytes"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
@@ -51,12 +53,12 @@ func RegisterPhotoRoutes(db *gorm.DB, router *mux.Router) {
 		}
 
 		if mediaURL.Purpose == models.MediaOriginal && scanner_compressfile.IsArchiveFilePath(cachedPath) {
-			fs, err := scanner_compressfile.Loader.LoadFileFS(cachedPath)
+			fs, err := scanner_compressfile.Loader.LoadFile(cachedPath)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 
-			http.ServeFileFS(w, r, fs, mediaName)
+			http.ServeContent(w, r, mediaName, time.Now(), bytes.NewReader(fs))
 			return
 		}
 
