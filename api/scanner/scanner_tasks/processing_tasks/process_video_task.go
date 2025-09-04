@@ -86,8 +86,7 @@ func (t ProcessVideoTask) ProcessMedia(ctx scanner_task.TaskContext, mediaData *
 		updatedURLs = append(updatedURLs, &mediaURL)
 	}
 
-	// TODO: Add feature switch which allow to disable video conversion
-	if videoWebURL == nil && !videoType.IsWebCompatible() {
+	if videoWebURL == nil && !videoType.IsWebCompatible() && !utils.EnvDisableVideoMP4Encoding.GetBool() {
 		webVideoName := fmt.Sprintf("web_video_%s_%s", path.Base(video.Path), utils.GenerateToken())
 		webVideoName = strings.ReplaceAll(webVideoName, ".", "_")
 		webVideoName = strings.ReplaceAll(webVideoName, " ", "_")

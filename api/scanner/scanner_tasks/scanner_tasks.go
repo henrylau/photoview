@@ -19,7 +19,7 @@ var allTasks []scanner_task.ScannerTask = []scanner_task.ScannerTask{
 	processing_tasks.SidecarTask{},
 	processing_tasks.ProcessPhotoTask{},
 	processing_tasks.ProcessVideoTask{},
-	// FaceDetectionTask{},
+	FaceDetectionTask{},
 	BlurhashTask{},
 	ExifTask{},
 	VideoMetadataTask{},
