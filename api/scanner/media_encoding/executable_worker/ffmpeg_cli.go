@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/photoview/photoview/api/log"
+	"github.com/photoview/photoview/api/scanner/scanner_compressfile"
 	"github.com/photoview/photoview/api/utils"
+	ffmpeg "github.com/u2takey/ffmpeg-go"
 	"gopkg.in/vansante/go-ffprobe.v2"
 )
 
@@ -76,6 +78,7 @@ func (cli *FfmpegCli) EncodeMp4(inputPath string, outputPath string) error {
 		return fmt.Errorf("encoding video %q error: ffmpeg: %w", inputPath, cli.err)
 	}
 
+	// TODO: Add support for archive file
 	args := []string{
 		"-i",
 		inputPath,
@@ -101,6 +104,32 @@ func (cli *FfmpegCli) EncodeVideoThumbnail(inputPath string, outputPath string, 
 	}
 
 	thumbnailOffsetSeconds := fmt.Sprintf("%.f", probeData.Format.DurationSeconds*0.25)
+
+	if scanner_compressfile.IsArchiveFilePath(inputPath) {
+		fs, err := scanner_compressfile.Loader.LoadFileFS(inputPath)
+		if err != nil {
+			return fmt.Errorf("could not load file from archive document (%s)", inputPath)
+		}
+		reader, _ := fs.Open(inputPath)
+
+		cmd := ffmpeg.Input("pipe:").
+			WithInput(reader).
+			Output(outputPath, ffmpeg.KwArgs{
+				"ss":      "2",                                                                                             // Seek to 2 seconds (adjust as needed)
+				"vframes": "1",                                                                                             // Extract only 1 frame
+				"vf":      "scale='min(1024,iw)':'min(1024,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2", // Optional scaling
+				"q:v":     "2",                                                                                             // Quality for JPEG (1-31, lower is better)
+			}).
+			OverWriteOutput().
+			ErrorToStdOut()
+
+		err = cmd.Run()
+		if err != nil {
+			return fmt.Errorf("encoding video thumbnail with %q %v error: %w", cli.path, cmd.Compile(), err)
+		}
+
+		return nil
+	}
 
 	args := []string{
 		"-ss", thumbnailOffsetSeconds, // grab frame at time offset

@@ -12,6 +12,7 @@ import (
 	"github.com/photoview/photoview/api/log"
 	"github.com/photoview/photoview/api/scanner/media_encoding"
 	"github.com/photoview/photoview/api/scanner/media_encoding/executable_worker"
+	"github.com/photoview/photoview/api/scanner/scanner_compressfile"
 	"github.com/photoview/photoview/api/scanner/scanner_task"
 	"github.com/photoview/photoview/api/utils"
 	"github.com/pkg/errors"
@@ -63,7 +64,7 @@ func (t ProcessVideoTask) ProcessMedia(ctx scanner_task.TaskContext, mediaData *
 			return []*models.MediaURL{}, errors.Wrapf(err, "failed to read metadata for original video (%s)", video.Title)
 		}
 
-		fileStats, err := os.Stat(origVideoPath)
+		fileStats := mediaData.GetFileInfo()
 		if err != nil {
 			return []*models.MediaURL{}, errors.Wrap(err, "reading file stats of original video")
 		}
@@ -85,6 +86,7 @@ func (t ProcessVideoTask) ProcessMedia(ctx scanner_task.TaskContext, mediaData *
 		updatedURLs = append(updatedURLs, &mediaURL)
 	}
 
+	// TODO: Add feature switch which allow to disable video conversion
 	if videoWebURL == nil && !videoType.IsWebCompatible() {
 		webVideoName := fmt.Sprintf("web_video_%s_%s", path.Base(video.Path), utils.GenerateToken())
 		webVideoName = strings.ReplaceAll(webVideoName, ".", "_")
@@ -208,7 +210,21 @@ func ReadVideoMetadata(videoPath string) (*ffprobe.ProbeData, error) {
 	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFn()
 
-	data, err := ffprobe.ProbeURL(ctx, videoPath)
+	var data *ffprobe.ProbeData
+	var err error
+
+	if scanner_compressfile.IsArchiveFilePath(videoPath) {
+		fs, e := scanner_compressfile.Loader.LoadFileFS(videoPath)
+		if e != nil {
+			return nil, errors.Wrapf(err, "could not load file fs (%s)", path.Base(videoPath))
+		}
+
+		v, _ := fs.Open("")
+		data, err = ffprobe.ProbeReader(ctx, v)
+	} else {
+		data, err = ffprobe.ProbeURL(ctx, videoPath)
+	}
+
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not read video metadata (%s)", path.Base(videoPath))
 	}

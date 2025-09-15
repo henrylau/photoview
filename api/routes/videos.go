@@ -11,6 +11,7 @@ import (
 	"github.com/photoview/photoview/api/graphql/models"
 	"github.com/photoview/photoview/api/log"
 	"github.com/photoview/photoview/api/scanner"
+	"github.com/photoview/photoview/api/scanner/scanner_compressfile"
 	"github.com/photoview/photoview/api/utils"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -75,6 +76,18 @@ func handleVideoRequest(
 			"expected", models.VideoWeb)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(internalServerError))
+		return
+	}
+
+	if scanner_compressfile.IsArchiveFilePath(cachedPath) {
+		log.Info(r.Context(), "serving video from archive",
+			"media ID", media.ID,
+			"media path", cachedPath)
+		fs, err := scanner_compressfile.Loader.LoadFileFS(cachedPath)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		http.ServeFileFS(w, r, fs, mediaName)
 		return
 	}
 
